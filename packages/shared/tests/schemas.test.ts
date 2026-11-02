@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { registerSchema, loginSchema, sendMessageSchema, createDmSchema } from '../src/index.js';
+import {
+  registerSchema,
+  loginSchema,
+  sendMessageSchema,
+  createDmSchema,
+  updateMessageSchema,
+  toggleReactionSchema
+} from '../src/index.js';
 
 describe('Shared Schemas & Validation', () => {
   it('deve validar registro com dados válidos', () => {
@@ -43,5 +50,19 @@ describe('Shared Schemas & Validation', () => {
       targetUserId: '123e4567-e89b-12d3-a456-426614174000'
     };
     expect(createDmSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('deve validar e rejeitar updateMessageSchema com trim e vazio', () => {
+    expect(updateMessageSchema.safeParse({ text: '  Texto válido  ' }).success).toBe(true);
+    expect(updateMessageSchema.safeParse({ text: '    ' }).success).toBe(false);
+    expect(updateMessageSchema.safeParse({ text: '' }).success).toBe(false);
+  });
+
+  it('deve validar e rejeitar toggleReactionSchema com trim e max(16)', () => {
+    expect(toggleReactionSchema.safeParse({ emoji: '👍' }).success).toBe(true);
+    expect(toggleReactionSchema.safeParse({ emoji: '  🚀  ' }).success).toBe(true);
+    expect(toggleReactionSchema.safeParse({ emoji: '   ' }).success).toBe(false);
+    expect(toggleReactionSchema.safeParse({ emoji: '' }).success).toBe(false);
+    expect(toggleReactionSchema.safeParse({ emoji: 'a'.repeat(17) }).success).toBe(false);
   });
 });

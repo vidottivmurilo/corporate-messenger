@@ -1,48 +1,39 @@
-# 🖥️ Frontend Specification: Corporate Messenger Web & Widget
+# 🖥️ Frontend Specification: Corporate Messenger Web & Widget (v1 + v2)
 
 ## 1. Visão Geral e Ergonomia
 
-Construído em **Vue 3 + Vite + Tailwind CSS**, seguindo as diretrizes de sobriedade e alta densidade de informação corporativa (estilo Linear/Slack), sem clichês visuais de IA.
+Construído em **Vue 3 + Vite + Tailwind CSS**, seguindo as diretrizes de sobriedade e alta densidade corporativa da skill [`09-frontend-design-craft`](../.agents/skills/09-frontend-design-craft/SKILL.md), sem clichês visuais de IA.
 
 ---
 
-## 2. Telas, Rotas e Componentes
+## 2. Componentes e Funcionalidades v2
 
-### 2.1. Rota `/login` e `/register` (`AuthView.vue`)
-- **Objetivo:** Autenticação e criação de conta do colaborador.
-- **Componentes:**
-  - `LoginForm.vue`: Campos de e-mail e senha, botão de submit com estado de carregamento.
-  - `RegisterModal.vue`: Modal com nome, e-mail e senha para novos cadastros.
-- **Estados Visuais Obrigatórios:**
-  - **⏳ Loading:** Botão desabilitado com spinner e texto `"Entrando..."` / `"Criando conta..."`.
-  - **📭 Empty:** Formulário limpo com foco automático no primeiro campo.
-  - **❌ Error:** Mensagem em vermelho sóbrio (`text-destructive bg-destructive/10 border border-destructive/20`) acima dos botões.
-  - **✅ Success:** Redirecionamento instantâneo para `/chat` com gravação segura do JWT e inicialização do WebSocket.
+### 2.1. Notificações e Badges (`useNotifications.ts`)
+- **Notificação Nativa do Desktop:**
+  - Pede permissão via `Notification.requestPermission()`.
+  - Disparada sempre que uma nova mensagem for recebida e o documento estiver oculto (`document.hidden === true`).
+  - Clicar na notificação foca a janela (`window.focus()`) e seleciona a sala correspondente.
+- **Audio Chime:**
+  - Sintetizado com precisão na Web Audio API (som de sino curto de 150ms a 880Hz suave), sem arquivos externos pesados.
+- **Badges de Não Lidas:**
+  - Contador numérico nos canais/DMs da barra lateral (`ChannelList.vue`, `DmList.vue`).
+  - Título dinâmico: `(3) Corporate Messenger`.
 
----
+### 2.2. Indicador de Digitação (`TypingIndicator.vue`)
+- Exibe discretamente na base da conversa: *"João Silva está digitando..."* com animação suave de 3 pontinhos, desaparecendo após 3 segundos sem novas emissões.
 
-### 2.2. Rota `/chat` (`ChatView.vue`)
-- **Layout de 2 Colunas Densas:**
-  - **Coluna Lateral (`Sidebar.vue` - 260px):**
-    - Perfil do usuário logado + status de conexão WS (`Conectado`, `Reconectando`).
-    - Seção **Canais (`ChannelList.vue`)**: `#geral` e canais públicos com contadores de não lidas.
-    - Seção **Mensagens Diretas (`DmList.vue`)**: Lista de colaboradores com indicador circular de presença (Verde = Online, Cinza = Offline). Clicar em um colaborador dispara `getOrCreateDmRoom`.
-  - **Coluna Principal de Conversa (`ChatArea.vue`):**
-    - **Cabeçalho:** Nome do canal/pessoa, status atual e botão de info.
-    - **Área de Histórico (`MessageList.vue`):** Lista com scroll reverso.
-      - Agrupamento de mensagens do mesmo remetente em até 5 minutos.
-      - Botão flutuante *"Novas mensagens ↓"* caso o usuário esteja rolando o histórico antigo.
-    - **Composição de Mensagem (`MessageComposer.vue`):** Textarea elástica.
-      - `Enter`: envia a mensagem.
-      - `Shift + Enter`: quebra de linha.
-- **Estados Visuais Obrigatórios:**
-  - **⏳ Loading:** Skeleton loader da lista de mensagens e canais enquanto a API responde.
-  - **📭 Empty:** Quando uma sala não tem mensagens: ícone amigável e texto: *"Início da conversa no canal #geral. Envie a primeira mensagem!"*.
-  - **❌ Error:** Banner discreto de erro de rede no topo com botão *"Tentar novamente"*.
-  - **✅ Success:** Atualização otimista: a mensagem digitada aparece imediatamente com indicador de envio e confirmação do WS.
+### 2.3. Reações com Emojis (`MessageReactions.vue`)
+- Chips discretos na base da mensagem com contador: `👍 3`, `🚀 1`.
+- Clicar em um chip alterna (toggle) a reação do usuário logado.
+- Barra de ação no hover da mensagem com atalhos rápidos para 👍, ❤️, 🚀, 👀.
 
----
+### 2.4. Edição e Exclusão (`MessageActions.vue`)
+- Ações no hover (apenas para mensagens do próprio usuário):
+  - Botão de Editar: ativa modo de edição em linha com `Esc` para cancelar e `Enter` para salvar.
+  - Botão de Excluir: confirmação rápida para marcar mensagem como apagada.
 
-### 2.3. Componente Embutível (`packages/chat-widget/src/CorporateChatWidget.vue`)
-- **Objetivo:** Mini-janela suspensa de chat flutuante (Bottom-Right) que pode ser incorporada em qualquer aplicação externa apenas passando a prop `api-url` e `token`.
-- **Estados:** Minimizado (botão com badge de não lidas) e Expandido (janela de 380px x 520px com a mesma ergonomia do chat principal).
+### 2.5. Command Palette Global (`CommandPalette.vue`)
+- Pressionar `Ctrl + K` (ou `Cmd + K`) abre modal flutuante centralizado com busca rápida de canais e colaboradores, permitindo navegação 100% por setas do teclado e `Enter`.
+
+### 2.6. Web Component do Widget (`<corporate-chat-box>`)
+- Pacote `packages/chat-widget` exporta tanto o componente Vue quanto o Custom Element padrão do W3C.

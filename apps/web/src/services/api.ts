@@ -3,7 +3,9 @@ import type {
   LoginInput,
   AuthResponse,
   RoomDto,
-  MessageHistoryResponse
+  MessageHistoryResponse,
+  MessageDto,
+  ReactionDto
 } from '@corp-messenger/shared';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -70,6 +72,26 @@ class ApiService {
 
     const qs = params.toString() ? `?${params.toString()}` : '';
     return this.request<MessageHistoryResponse>(`/messages/${roomId}${qs}`);
+  }
+
+  async updateMessage(messageId: string, text: string) {
+    return this.request<MessageDto>(`/messages/${messageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ text })
+    });
+  }
+
+  async deleteMessage(messageId: string) {
+    return this.request<{ success: boolean }>(`/messages/${messageId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async toggleReaction(messageId: string, emoji: string) {
+    return this.request<ReactionDto[]>(`/messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji })
+    });
   }
 }
 

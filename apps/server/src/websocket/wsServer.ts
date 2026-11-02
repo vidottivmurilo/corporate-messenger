@@ -3,7 +3,7 @@ import { WebSocket } from 'ws';
 import { authService, JwtPayload } from '../modules/auth/authService.js';
 import { messageService } from '../modules/messages/messageService.js';
 import { roomService } from '../modules/rooms/roomService.js';
-import type { WsClientMessage, WsServerMessage, OnlineUserDto } from '@corp-messenger/shared';
+import type { WsClientMessage, WsServerMessage, OnlineUserDto, MessageDto } from '@corp-messenger/shared';
 
 interface AuthenticatedSocket extends WebSocket {
   user?: JwtPayload;
@@ -15,7 +15,6 @@ export class WebSocketManager {
   private heartbeatInterval: any = null;
 
   setup(app: FastifyInstance) {
-    // Inicia rotina de heartbeat a cada 30 segundos
     if (!this.heartbeatInterval) {
       this.heartbeatInterval = setInterval(() => {
         this.clients.forEach((ws, userId) => {
@@ -36,7 +35,6 @@ export class WebSocketManager {
       const socket = ((connection as any).socket || connection) as AuthenticatedSocket;
       socket.isAlive = true;
 
-      // Inicia timer de 3 segundos para handshake obrigatório
       const authTimeout = setTimeout(() => {
         if (!socket.user) {
           socket.send(JSON.stringify({
@@ -80,7 +78,6 @@ export class WebSocketManager {
             return;
           }
 
-          // Se a mensagem não for AUTH e o socket ainda não estiver autenticado:
           if (!socket.user) {
             socket.send(JSON.stringify({
               type: 'AUTH_ERROR',
@@ -90,39 +87,41 @@ export class WebSocketManager {
             return;
           }
 
-          // Trata envio de mensagem em tempo real
+          if (payload.type === 'TYPING') {
+            const { roomId } = payload;
+            const allowedMemberIds = await roomService.getRoomMembers(roomId);
+            if (allowedMemberIds.length > 0 && !allowedMemberIds.includes(socket.user.userId)) {
+              return;
+            }
+
+            const outbound = JSON.stringify({
+              type: 'USER_TYPING',
+              roomId,
+              userId: socket.user.userId,
+              userName: socket.user.name
+            } as WsServerMessage);
+
+            this.sendToRoom(allowedMemberIds, outbound, socket.user.userId);
+            return;
+          }
+
           if (payload.type === 'SEND_MESSAGE') {
             const { roomId, text } = payload;
             if (!text || !text.trim()) return;
 
-            // 1. Persiste a mensagem no banco
+            const allowedMemberIds = await roomService.getRoomMembers(roomId);
+            if (allowedMemberIds.length > 0 && !allowedMemberIds.includes(socket.user.userId)) {
+              return;
+            }
+
             const savedMessage = await messageService.saveMessage(roomId, socket.user.userId, text);
 
-            // 2. Busca membros da sala (ou lista vazia se for pública)
-            const allowedMemberIds = await roomService.getRoomMembers(roomId);
-
-            const outboundMessage = JSON.stringify({
+            const outbound = JSON.stringify({
               type: 'NEW_MESSAGE',
               message: savedMessage
             } as WsServerMessage);
 
-            // 3. Broadcast
-            if (allowedMemberIds.length === 0) {
-              // Sala pública: envia para todos conectados
-              this.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                  client.send(outboundMessage);
-                }
-              });
-            } else {
-              // DM privada: envia apenas para os membros da sala
-              allowedMemberIds.forEach(memberId => {
-                const targetSocket = this.clients.get(memberId);
-                if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
-                  targetSocket.send(outboundMessage);
-                }
-              });
-            }
+            this.sendToRoom(allowedMemberIds, outbound);
           }
         } catch (err) {
           console.error('[WS] Erro ao processar payload:', err);
@@ -141,6 +140,44 @@ export class WebSocketManager {
         socket.isAlive = true;
       });
     });
+  }
+
+  private sendToRoom(allowedMemberIds: string[], message: string, excludeUserId?: string) {
+    if (allowedMemberIds.length === 0) {
+      this.clients.forEach((client, userId) => {
+        if (userId !== excludeUserId && client.readyState === WebSocket.OPEN) {
+          client.send(message);
+        }
+      });
+    } else {
+      allowedMemberIds.forEach(memberId => {
+        if (memberId !== excludeUserId) {
+          const targetSocket = this.clients.get(memberId);
+          if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
+            targetSocket.send(message);
+          }
+        }
+      });
+    }
+  }
+
+  async broadcastMessageUpdate(message: MessageDto) {
+    const allowed = await roomService.getRoomMembers(message.roomId);
+    const outbound = JSON.stringify({
+      type: 'MESSAGE_UPDATED',
+      message
+    } as WsServerMessage);
+    this.sendToRoom(allowed, outbound);
+  }
+
+  async broadcastMessageDelete(messageId: string, roomId: string) {
+    const allowed = await roomService.getRoomMembers(roomId);
+    const outbound = JSON.stringify({
+      type: 'MESSAGE_DELETED',
+      messageId,
+      roomId
+    } as WsServerMessage);
+    this.sendToRoom(allowed, outbound);
   }
 
   broadcastOnlineUsers() {

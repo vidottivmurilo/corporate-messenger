@@ -12,8 +12,17 @@
         </span>
       </div>
 
-      <div class="text-xs text-muted">
-        Corporate Messenger v1.0
+      <div class="flex items-center gap-3">
+        <button
+          @click="$emit('open-palette')"
+          class="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-surface border border-border rounded text-[11px] text-muted hover:text-foreground transition-colors"
+          title="Abrir Command Palette"
+        >
+          <span>🔍</span>
+          <span>Pesquisar</span>
+          <kbd class="text-[9px] font-mono bg-background border border-border px-1 rounded">Ctrl+K</kbd>
+        </button>
+        <span class="text-xs text-muted">v2.0</span>
       </div>
     </header>
 
@@ -34,6 +43,10 @@
 import { useChatStore } from '../stores/chat.js';
 import MessageList from './MessageList.vue';
 import MessageComposer from './MessageComposer.vue';
+
+defineEmits<{
+  (e: 'open-palette'): void;
+}>();
 
 const chatStore = useChatStore();
 </script>

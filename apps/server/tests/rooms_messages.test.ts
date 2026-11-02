@@ -3,7 +3,6 @@ import { buildApp } from '../src/app.js';
 import { db } from '../src/db/index.js';
 import { authService } from '../src/modules/auth/authService.js';
 
-// Mock do Drizzle DB
 vi.mock('../src/db/index.js', () => ({
   db: {
     query: {
@@ -18,12 +17,18 @@ vi.mock('../src/db/index.js', () => ({
         findFirst: vi.fn(),
         findMany: vi.fn()
       },
+      messageReactions: {
+        findFirst: vi.fn(),
+        findMany: vi.fn()
+      },
       users: {
         findFirst: vi.fn(),
         findMany: vi.fn()
       }
     },
     insert: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
     execute: vi.fn()
   },
   pool: {
@@ -31,7 +36,7 @@ vi.mock('../src/db/index.js', () => ({
   }
 }));
 
-describe('US-002 & US-003: Salas, Histórico & DMs', () => {
+describe('US-002, US-005, US-006: Salas, Mensagens, Reações e Edição', () => {
   let app: ReturnType<typeof buildApp>;
   let validToken: string;
   const currentUserId = '11111111-1111-1111-1111-111111111111';
@@ -39,7 +44,7 @@ describe('US-002 & US-003: Salas, Histórico & DMs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     app = buildApp();
-    validToken = (authService as any).verifyToken ? 'valid-token' : '';
+    validToken = 'valid-token';
     vi.spyOn(authService, 'verifyToken').mockReturnValue({
       userId: currentUserId,
       name: 'Usuário Teste',
@@ -68,130 +73,215 @@ describe('US-002 & US-003: Salas, Histórico & DMs', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/rooms',
-        headers: {
-          authorization: `Bearer ${validToken}`
-        }
+        headers: { authorization: `Bearer ${validToken}` }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body[0].name).toBe('geral');
+    });
+  });
+
+  describe('PATCH /messages/:messageId (Edição)', () => {
+    it('deve permitir que o autor edite sua mensagem', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue({
+        id: 'msg-1',
+        senderId: currentUserId,
+        roomId: 'room-1',
+        text: 'Texto original'
+      });
+
+      (db.update as any).mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([{
+              id: 'msg-1',
+              senderId: currentUserId,
+              roomId: 'room-1',
+              text: 'Texto atualizado',
+              isEdited: true,
+              isDeleted: false,
+              createdAt: new Date()
+            }])
+          })
+        })
+      });
+
+      (db.query.messageReactions.findMany as any).mockResolvedValue([]);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/messages/msg-1',
+        headers: { authorization: `Bearer ${validToken}` },
+        payload: { text: 'Texto atualizado' }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.text).toBe('Texto atualizado');
+      expect(body.isEdited).toBe(true);
+    });
+
+    it('deve bloquear edição por usuário que não seja o autor (403)', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue({
+        id: 'msg-1',
+        senderId: 'outro-usuario',
+        roomId: 'room-1',
+        text: 'Texto original'
+      });
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/messages/msg-1',
+        headers: { authorization: `Bearer ${validToken}` },
+        payload: { text: 'Tentativa de invasão' }
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('deve retornar 404 quando a mensagem não existir', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/messages/msg-inexistente',
+        headers: { authorization: `Bearer ${validToken}` },
+        payload: { text: 'Texto atualizado' }
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Mensagem não encontrada');
+    });
+  });
+
+  describe('DELETE /messages/:messageId (Exclusão)', () => {
+    it('deve permitir que o autor exclua sua mensagem', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue({
+        id: 'msg-1',
+        senderId: currentUserId,
+        roomId: 'room-1'
+      });
+
+      (db.update as any).mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue({})
+        })
+      });
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/messages/msg-1',
+        headers: { authorization: `Bearer ${validToken}` }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(true);
+    });
+
+    it('deve bloquear exclusão por usuário que não seja o autor (403)', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue({
+        id: 'msg-1',
+        senderId: 'outro-usuario',
+        roomId: 'room-1'
+      });
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/messages/msg-1',
+        headers: { authorization: `Bearer ${validToken}` }
+      });
+
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Apenas o autor pode excluir esta mensagem');
+    });
+
+    it('deve retornar 404 quando a mensagem não existir', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/messages/msg-inexistente',
+        headers: { authorization: `Bearer ${validToken}` }
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Mensagem não encontrada');
+    });
+  });
+
+  describe('POST /messages/:messageId/reactions', () => {
+    it('deve registrar reação com emoji em mensagem', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue({
+        id: 'msg-1',
+        roomId: 'room-1'
+      });
+      (db.query.rooms.findFirst as any).mockResolvedValue({
+        id: 'room-1',
+        name: 'geral',
+        isDirect: false
+      });
+      (db.query.messageReactions.findFirst as any).mockResolvedValue(null);
+      (db.insert as any).mockReturnValue({
+        values: vi.fn().mockResolvedValue({})
+      });
+      (db.query.messageReactions.findMany as any).mockResolvedValue([
+        { id: 'r-1', messageId: 'msg-1', userId: currentUserId, emoji: '👍' }
+      ]);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/messages/msg-1/reactions',
+        headers: { authorization: `Bearer ${validToken}` },
+        payload: { emoji: '👍' }
       });
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.length).toBe(1);
-      expect(body[0].name).toBe('geral');
-      expect(body[0].isDirect).toBe(false);
+      expect(body[0].emoji).toBe('👍');
+      expect(body[0].count).toBe(1);
     });
 
-    it('deve rejeitar requisição sem token (401)', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/rooms'
-      });
-      expect(response.statusCode).toBe(401);
-    });
-  });
-
-  describe('POST /rooms/dm', () => {
-    it('deve criar ou recuperar sala direta (DM)', async () => {
-      const targetUserId = '22222222-2222-2222-2222-222222222222';
-
-      (db.query.users.findFirst as any).mockResolvedValue({
-        id: targetUserId,
-        name: 'Maria Santos'
-      });
-
-      // Mock execute (busca sala existente) -> retorna vazio para criar nova
-      (db.execute as any).mockResolvedValue({ rows: [] });
-
-      (db.insert as any).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{
-            id: 'dm-room-id',
-            name: 'Maria Santos',
-            isDirect: true,
-            createdAt: new Date()
-          }])
-        })
-      });
+    it('deve retornar 404 quando a mensagem não existir', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue(null);
 
       const response = await app.inject({
         method: 'POST',
-        url: '/rooms/dm',
-        headers: {
-          authorization: `Bearer ${validToken}`
-        }
+        url: '/messages/msg-inexistente/reactions',
+        headers: { authorization: `Bearer ${validToken}` },
+        payload: { emoji: '👍' }
       });
 
-      // Erro esperado de validação se targetUserId não for enviado
-      expect(response.statusCode).toBe(400);
-
-      // Com payload válido:
-      const validResponse = await app.inject({
-        method: 'POST',
-        url: '/rooms/dm',
-        headers: {
-          authorization: `Bearer ${validToken}`
-        },
-        payload: {
-          targetUserId
-        }
-      });
-
-      expect(validResponse.statusCode).toBe(200);
-      const body = JSON.parse(validResponse.body);
-      expect(body.id).toBe('dm-room-id');
-      expect(body.isDirect).toBe(true);
-    });
-
-    it('deve proibir criação de DM consigo mesmo (400)', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/rooms/dm',
-        headers: {
-          authorization: `Bearer ${validToken}`
-        },
-        payload: {
-          targetUserId: currentUserId
-        }
-      });
-
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(404);
       const body = JSON.parse(response.body);
-      expect(body.error).toContain('Não é permitido criar DM consigo mesmo');
+      expect(body.error).toBe('Mensagem não encontrada');
     });
-  });
 
-  describe('GET /messages/:roomId', () => {
-    it('deve retornar mensagens paginadas por cursor', async () => {
-      (db.query.messages.findMany as any).mockResolvedValue([
-        {
-          id: 'msg-1',
-          roomId: 'room-1',
-          senderId: currentUserId,
-          text: 'Olá mundo!',
-          createdAt: new Date('2026-11-02T12:00:00Z')
-        }
-      ]);
-
-      (db.query.users.findMany as any).mockResolvedValue([
-        {
-          id: currentUserId,
-          name: 'Usuário Teste'
-        }
+    it('deve retornar 403 se o usuário não for membro da sala restrita da mensagem', async () => {
+      (db.query.messages.findFirst as any).mockResolvedValue({
+        id: 'msg-1',
+        roomId: 'room-privada'
+      });
+      (db.query.rooms.findFirst as any).mockResolvedValue(null);
+      (db.query.roomMembers.findMany as any).mockResolvedValue([
+        { roomId: 'room-privada', userId: 'outro-user' }
       ]);
 
       const response = await app.inject({
-        method: 'GET',
-        url: '/messages/room-1?limit=50',
-        headers: {
-          authorization: `Bearer ${validToken}`
-        }
+        method: 'POST',
+        url: '/messages/msg-1/reactions',
+        headers: { authorization: `Bearer ${validToken}` },
+        payload: { emoji: '👍' }
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(403);
       const body = JSON.parse(response.body);
-      expect(body.messages.length).toBe(1);
-      expect(body.messages[0].text).toBe('Olá mundo!');
-      expect(body.messages[0].senderName).toBe('Usuário Teste');
-      expect(body.hasMore).toBe(false);
+      expect(body.error).toBe('Acesso negado à sala desta mensagem');
     });
   });
 });

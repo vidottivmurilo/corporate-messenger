@@ -8,6 +8,9 @@ import type {
 type MessageHandler = (message: MessageDto) => void;
 type PresenceHandler = (users: OnlineUserDto[]) => void;
 type StatusHandler = (status: 'connected' | 'connecting' | 'disconnected') => void;
+type TypingHandler = (data: { roomId: string; userId: string; userName: string }) => void;
+type MessageUpdateHandler = (message: MessageDto) => void;
+type MessageDeleteHandler = (data: { messageId: string; roomId: string }) => void;
 
 class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -17,6 +20,9 @@ class WebSocketClient {
   private messageHandlers: Set<MessageHandler> = new Set();
   private presenceHandlers: Set<PresenceHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
+  private typingHandlers: Set<TypingHandler> = new Set();
+  private messageUpdateHandlers: Set<MessageUpdateHandler> = new Set();
+  private messageDeleteHandlers: Set<MessageDeleteHandler> = new Set();
 
   connect(token: string) {
     this.token = token;
@@ -30,7 +36,6 @@ class WebSocketClient {
     this.socket = new WebSocket(wsUrl);
 
     this.socket.onopen = () => {
-      // Handshake obrigatório: envia AUTH imediatamente
       this.send({ type: 'AUTH', token: this.token! });
     };
 
@@ -40,7 +45,7 @@ class WebSocketClient {
 
         if (data.type === 'AUTH_SUCCESS') {
           this.notifyStatus('connected');
-          this.reconnectDelay = 1000; // Reset backoff
+          this.reconnectDelay = 1000;
           return;
         }
 
@@ -51,6 +56,21 @@ class WebSocketClient {
 
         if (data.type === 'NEW_MESSAGE') {
           this.messageHandlers.forEach(h => h(data.message));
+          return;
+        }
+
+        if (data.type === 'USER_TYPING') {
+          this.typingHandlers.forEach(h => h(data));
+          return;
+        }
+
+        if (data.type === 'MESSAGE_UPDATED') {
+          this.messageUpdateHandlers.forEach(h => h(data.message));
+          return;
+        }
+
+        if (data.type === 'MESSAGE_DELETED') {
+          this.messageDeleteHandlers.forEach(h => h(data));
           return;
         }
 
@@ -84,6 +104,10 @@ class WebSocketClient {
     this.send({ type: 'SEND_MESSAGE', roomId, text });
   }
 
+  sendTyping(roomId: string) {
+    this.send({ type: 'TYPING', roomId });
+  }
+
   onMessage(handler: MessageHandler) {
     this.messageHandlers.add(handler);
     return () => this.messageHandlers.delete(handler);
@@ -97,6 +121,21 @@ class WebSocketClient {
   onStatus(handler: StatusHandler) {
     this.statusHandlers.add(handler);
     return () => this.statusHandlers.delete(handler);
+  }
+
+  onTyping(handler: TypingHandler) {
+    this.typingHandlers.add(handler);
+    return () => this.typingHandlers.delete(handler);
+  }
+
+  onMessageUpdated(handler: MessageUpdateHandler) {
+    this.messageUpdateHandlers.add(handler);
+    return () => this.messageUpdateHandlers.delete(handler);
+  }
+
+  onMessageDeleted(handler: MessageDeleteHandler) {
+    this.messageDeleteHandlers.add(handler);
+    return () => this.messageDeleteHandlers.delete(handler);
   }
 
   private notifyStatus(status: 'connected' | 'connecting' | 'disconnected') {

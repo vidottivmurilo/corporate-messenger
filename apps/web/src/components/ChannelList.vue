@@ -11,14 +11,24 @@
       :key="channel.id"
       @click="chatStore.selectRoom(channel)"
       :class="[
-        'w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left',
+        'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left',
         chatStore.activeRoom?.id === channel.id
           ? 'bg-primary/15 text-primary'
           : 'text-foreground/80 hover:bg-surface/80 hover:text-foreground'
       ]"
     >
-      <span class="text-muted">#</span>
-      <span class="truncate">{{ channel.name }}</span>
+      <div class="flex items-center gap-2 truncate">
+        <span class="text-muted">#</span>
+        <span class="truncate">{{ channel.name }}</span>
+      </div>
+
+      <!-- Badge de Mensagens Não Lidas (v2) -->
+      <span
+        v-if="chatStore.unreadCounts[channel.id]"
+        class="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0"
+      >
+        {{ chatStore.unreadCounts[channel.id] }}
+      </span>
     </button>
   </div>
 </template>

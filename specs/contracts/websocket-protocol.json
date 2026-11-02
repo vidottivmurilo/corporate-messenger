@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CorporateMessengerWebSocketProtocol",
-  "description": "Especificação formal de mensagens bidirecionais WebSocket",
+  "title": "CorporateMessengerWebSocketProtocolV2",
+  "description": "Especificação formal de mensagens bidirecionais WebSocket v2",
   "clientToServer": {
     "AUTH": {
       "type": "object",
       "required": ["type", "token"],
       "properties": {
         "type": { "const": "AUTH" },
-        "token": { "type": "string", "description": "JWT gerado no login" }
+        "token": { "type": "string" }
       }
     },
     "SEND_MESSAGE": {
@@ -18,6 +18,14 @@
         "type": { "const": "SEND_MESSAGE" },
         "roomId": { "type": "string", "format": "uuid" },
         "text": { "type": "string", "minLength": 1, "maxLength": 5000 }
+      }
+    },
+    "TYPING": {
+      "type": "object",
+      "required": ["type", "roomId"],
+      "properties": {
+        "type": { "const": "TYPING" },
+        "roomId": { "type": "string", "format": "uuid" }
       }
     },
     "PING": {
@@ -69,9 +77,34 @@
       "required": ["type", "message"],
       "properties": {
         "type": { "const": "NEW_MESSAGE" },
-        "message": {
-          "$ref": "#/definitions/MessageDto"
-        }
+        "message": { "$ref": "#/definitions/MessageDto" }
+      }
+    },
+    "MESSAGE_UPDATED": {
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type": { "const": "MESSAGE_UPDATED" },
+        "message": { "$ref": "#/definitions/MessageDto" }
+      }
+    },
+    "MESSAGE_DELETED": {
+      "type": "object",
+      "required": ["type", "messageId", "roomId"],
+      "properties": {
+        "type": { "const": "MESSAGE_DELETED" },
+        "messageId": { "type": "string", "format": "uuid" },
+        "roomId": { "type": "string", "format": "uuid" }
+      }
+    },
+    "USER_TYPING": {
+      "type": "object",
+      "required": ["type", "roomId", "userId", "userName"],
+      "properties": {
+        "type": { "const": "USER_TYPING" },
+        "roomId": { "type": "string", "format": "uuid" },
+        "userId": { "type": "string", "format": "uuid" },
+        "userName": { "type": "string" }
       }
     },
     "PONG": {

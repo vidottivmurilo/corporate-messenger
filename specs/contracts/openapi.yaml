@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Corporate Messenger API
-  version: 1.0.0
-  description: API REST para autenticação, listagem de canais e histórico de mensagens do Corporate Messenger.
+  version: 2.0.0
+  description: API REST para autenticação, canais, mensagens, reações e histórico do Corporate Messenger.
 servers:
   - url: http://localhost:3000
     description: Servidor de Desenvolvimento Local
@@ -131,8 +131,99 @@ paths:
                 $ref: '#/components/schemas/MessageHistoryResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /messages/{messageId}:
+    patch:
+      summary: Editar texto de uma mensagem própria
+      operationId: updateMessage
+      x-visibility: user-facing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+      responses:
+        '200':
+          description: Mensagem atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDto'
+        '403':
+          description: Apenas o autor pode editar a mensagem
         '404':
-          description: Sala não encontrada
+          description: Mensagem não encontrada
+
+    delete:
+      summary: Excluir uma mensagem própria
+      operationId: deleteMessage
+      x-visibility: user-facing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mensagem excluída
+        '403':
+          description: Apenas o autor pode excluir a mensagem
+        '404':
+          description: Mensagem não encontrada
+
+  /messages/{messageId}/reactions:
+    post:
+      summary: Adicionar ou remover reação com emoji (toggle)
+      operationId: toggleReaction
+      x-visibility: user-facing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emoji]
+              properties:
+                emoji:
+                  type: string
+      responses:
+        '200':
+          description: Reações atualizadas da mensagem
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReactionDto'
 
 components:
   securitySchemes:
@@ -215,6 +306,19 @@ components:
           type: string
           format: uuid
 
+    ReactionDto:
+      type: object
+      required: [emoji, count, users]
+      properties:
+        emoji:
+          type: string
+        count:
+          type: integer
+        users:
+          type: array
+          items:
+            type: string
+
     MessageDto:
       type: object
       required: [id, roomId, senderId, senderName, text, createdAt]
@@ -232,6 +336,14 @@ components:
           type: string
         text:
           type: string
+        isEdited:
+          type: boolean
+        isDeleted:
+          type: boolean
+        reactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReactionDto'
         createdAt:
           type: string
           format: date-time
@@ -253,16 +365,5 @@ components:
   responses:
     BadRequest:
       description: Requisição com parâmetros inválidos
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              error:
-                type: string
-              details:
-                type: array
-                items:
-                  type: string
     Unauthorized:
       description: Token não fornecido ou inválido

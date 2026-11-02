@@ -6,7 +6,7 @@
         <div class="w-6 h-6 rounded bg-primary/20 border border-primary/30 flex items-center justify-center text-xs text-primary font-bold">
           C
         </div>
-        <span class="text-sm font-semibold tracking-tight text-foreground truncate">Empresa Chat</span>
+        <span class="text-sm font-semibold tracking-tight text-foreground truncate">Corporate Chat</span>
       </div>
 
       <!-- Badge de status WebSocket -->
@@ -19,6 +19,22 @@
           ]"
         ></span>
       </div>
+    </div>
+
+    <!-- Botão de Acesso Rápido ao Command Palette (Ctrl+K) -->
+    <div class="px-3 pt-3">
+      <button
+        @click="$emit('open-palette')"
+        class="w-full flex items-center justify-between px-2.5 py-1.5 bg-surface/50 border border-border/70 rounded-md text-xs text-muted hover:text-foreground hover:bg-surface/80 transition-colors"
+      >
+        <span class="flex items-center gap-1.5">
+          <span>🔍</span>
+          <span class="text-[11px]">Buscar ou ir para...</span>
+        </span>
+        <kbd class="text-[9px] font-mono bg-background border border-border px-1.5 py-0.5 rounded text-muted">
+          Ctrl+K
+        </kbd>
+      </button>
     </div>
 
     <!-- Lista de canais e DMs -->
@@ -56,6 +72,10 @@ import { useAuthStore } from '../stores/auth.js';
 import { useChatStore } from '../stores/chat.js';
 import ChannelList from './ChannelList.vue';
 import DmList from './DmList.vue';
+
+defineEmits<{
+  (e: 'open-palette'): void;
+}>();
 
 const router = useRouter();
 const authStore = useAuthStore();

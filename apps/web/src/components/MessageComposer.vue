@@ -5,6 +5,7 @@
         ref="textareaRef"
         v-model="text"
         rows="1"
+        @input="handleInput"
         @keydown="handleKeyDown"
         :placeholder="`Enviar mensagem para ${roomName}...`"
         class="w-full bg-transparent px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted/60 focus:outline-none resize-none max-h-36 overflow-y-auto"
@@ -35,10 +36,21 @@ const chatStore = useChatStore();
 const text = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
+let lastTypingEmit = 0;
+
 const roomName = computed(() => {
   if (!chatStore.activeRoom) return '';
   return chatStore.activeRoom.isDirect ? chatStore.activeRoom.name : `#${chatStore.activeRoom.name}`;
 });
+
+function handleInput() {
+  const now = Date.now();
+  // Throttle de 1.5 segundos entre notificações de digitação
+  if (now - lastTypingEmit > 1500) {
+    chatStore.emitTyping();
+    lastTypingEmit = now;
+  }
+}
 
 function handleKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {

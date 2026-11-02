@@ -32,8 +32,24 @@ export async function initDb() {
         room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
         sender_id UUID REFERENCES users(id) ON DELETE SET NULL,
         text TEXT NOT NULL,
+        is_edited BOOLEAN NOT NULL DEFAULT FALSE,
+        is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      -- Garante novas colunas caso a tabela já existisse
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
+
+      CREATE TABLE IF NOT EXISTS message_reactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        emoji TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS msg_user_emoji_idx ON message_reactions(message_id, user_id, emoji);
 
       -- Canal geral padrão
       INSERT INTO rooms (name, is_direct)
@@ -42,7 +58,7 @@ export async function initDb() {
         SELECT 1 FROM rooms WHERE name = 'geral' AND is_direct = false
       );
     `);
-    console.log('✅ Banco de dados PostgreSQL inicializado e tabelas verificadas com sucesso.');
+    console.log('✅ Banco de dados PostgreSQL (v2) inicializado e tabelas atualizadas com sucesso.');
   } catch (err) {
     console.error('❌ Erro ao inicializar tabelas do banco de dados:', err);
     throw err;
@@ -50,4 +66,3 @@ export async function initDb() {
     client.release();
   }
 }
-
