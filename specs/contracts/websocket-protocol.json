@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CorporateMessengerWebSocketProtocol",
+  "description": "Especificação formal de mensagens bidirecionais WebSocket",
+  "clientToServer": {
+    "AUTH": {
+      "type": "object",
+      "required": ["type", "token"],
+      "properties": {
+        "type": { "const": "AUTH" },
+        "token": { "type": "string", "description": "JWT gerado no login" }
+      }
+    },
+    "SEND_MESSAGE": {
+      "type": "object",
+      "required": ["type", "roomId", "text"],
+      "properties": {
+        "type": { "const": "SEND_MESSAGE" },
+        "roomId": { "type": "string", "format": "uuid" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 5000 }
+      }
+    },
+    "PING": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "PING" }
+      }
+    }
+  },
+  "serverToClient": {
+    "AUTH_SUCCESS": {
+      "type": "object",
+      "required": ["type", "userId", "name"],
+      "properties": {
+        "type": { "const": "AUTH_SUCCESS" },
+        "userId": { "type": "string", "format": "uuid" },
+        "name": { "type": "string" }
+      }
+    },
+    "AUTH_ERROR": {
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type": { "const": "AUTH_ERROR" },
+        "message": { "type": "string" }
+      }
+    },
+    "ONLINE_USERS": {
+      "type": "object",
+      "required": ["type", "users"],
+      "properties": {
+        "type": { "const": "ONLINE_USERS" },
+        "users": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["userId", "name"],
+            "properties": {
+              "userId": { "type": "string", "format": "uuid" },
+              "name": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "NEW_MESSAGE": {
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type": { "const": "NEW_MESSAGE" },
+        "message": {
+          "$ref": "#/definitions/MessageDto"
+        }
+      }
+    },
+    "PONG": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "PONG" }
+      }
+    }
+  }
+}

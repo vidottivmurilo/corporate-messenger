@@ -1,0 +1,268 @@
+openapi: 3.1.0
+info:
+  title: Corporate Messenger API
+  version: 1.0.0
+  description: API REST para autenticação, listagem de canais e histórico de mensagens do Corporate Messenger.
+servers:
+  - url: http://localhost:3000
+    description: Servidor de Desenvolvimento Local
+
+paths:
+  /auth/register:
+    post:
+      summary: Cadastrar novo colaborador
+      operationId: registerUser
+      x-visibility: user-facing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          description: Usuário cadastrado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email já cadastrado
+
+  /auth/login:
+    post:
+      summary: Autenticar e gerar JWT
+      operationId: loginUser
+      x-visibility: user-facing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Login realizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Credenciais inválidas
+
+  /rooms:
+    get:
+      summary: Listar salas públicas disponíveis
+      operationId: listRooms
+      x-visibility: user-facing
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lista de salas públicas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoomDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rooms/dm:
+    post:
+      summary: Iniciar ou obter sala de conversa direta (DM)
+      operationId: getOrCreateDmRoom
+      x-visibility: user-facing
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDmInput'
+      responses:
+        '200':
+          description: Sala direta recuperada ou criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomDto'
+        '400':
+          description: Não é permitido criar DM consigo mesmo
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /messages/{roomId}:
+    get:
+      summary: Obter histórico de mensagens de uma sala paginado por cursor
+      operationId: getRoomMessages
+      x-visibility: user-facing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: beforeMessageId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Histórico de mensagens retornado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Sala não encontrada
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    UserDto:
+      type: object
+      required: [id, name, email, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserDto'
+
+    RoomDto:
+      type: object
+      required: [id, name, isDirect, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isDirect:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateDmInput:
+      type: object
+      required: [targetUserId]
+      properties:
+        targetUserId:
+          type: string
+          format: uuid
+
+    MessageDto:
+      type: object
+      required: [id, roomId, senderId, senderName, text, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        senderName:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    MessageHistoryResponse:
+      type: object
+      required: [messages, hasMore]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageDto'
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Requisição com parâmetros inválidos
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: string
+    Unauthorized:
+      description: Token não fornecido ou inválido
