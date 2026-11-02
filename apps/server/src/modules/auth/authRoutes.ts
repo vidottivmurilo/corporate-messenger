@@ -16,6 +16,7 @@ export async function authRoutes(app: FastifyInstance) {
       const user = await authService.register(parseResult.data);
       return reply.status(201).send(user);
     } catch (err: any) {
+      console.error('[AUTH REGISTER ERROR]', err);
       const status = err.statusCode || 500;
       return reply.status(status).send({ error: err.message });
     }
