@@ -5,6 +5,12 @@ import { roomService } from '../rooms/roomService.js';
 import type { MessageDto, MessageHistoryResponse, ReactionDto } from '@corp-messenger/shared';
 
 export class MessageService {
+  async getMessageById(messageId: string) {
+    return db.query.messages.findFirst({
+      where: eq(messages.id, messageId)
+    });
+  }
+
   async saveMessage(roomId: string, senderId: string, text: string): Promise<MessageDto> {
     const [msg] = await db.insert(messages).values({
       roomId,

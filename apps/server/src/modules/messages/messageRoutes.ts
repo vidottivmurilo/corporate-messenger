@@ -82,7 +82,12 @@ export async function messageRoutes(app: FastifyInstance) {
     const currentUserId = (request as any).user.userId;
 
     try {
+      const msg = await messageService.getMessageById(messageId);
+      if (!msg) {
+        return reply.status(404).send({ error: 'Mensagem não encontrada' });
+      }
       const reactions = await messageService.toggleReaction(messageId, currentUserId, parseResult.data.emoji);
+      wsManager.broadcastMessageReaction(messageId, msg.roomId, reactions);
       return reply.status(200).send(reactions);
     } catch (err: any) {
       const status = err.statusCode || 500;

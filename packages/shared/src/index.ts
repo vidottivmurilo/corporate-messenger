@@ -117,5 +117,6 @@ export type WsServerMessage =
   | { type: 'NEW_MESSAGE'; message: MessageDto }
   | { type: 'MESSAGE_UPDATED'; message: MessageDto }
   | { type: 'MESSAGE_DELETED'; messageId: string; roomId: string }
+  | { type: 'MESSAGE_REACTION_UPDATED'; messageId: string; roomId: string; reactions: ReactionDto[] }
   | { type: 'USER_TYPING'; roomId: string; userId: string; userName: string }
   | { type: 'PONG' };

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useChatStore } from '../src/stores/chat.js';
 import { api } from '../src/services/api.js';
+import { wsClient } from '../src/services/websocket.js';
 
 // Mock de DOM document.title e Notification
 if (typeof document === 'undefined') {
@@ -18,6 +19,7 @@ vi.mock('../src/services/websocket.js', () => ({
     onTyping: vi.fn(),
     onMessageUpdated: vi.fn(),
     onMessageDeleted: vi.fn(),
+    onReactionUpdated: vi.fn(),
     sendMessage: vi.fn(),
     sendTyping: vi.fn()
   }
@@ -107,6 +109,38 @@ describe('Frontend ChatStore v2 (Notificações, Badges e Reações)', () => {
     await chatStore.reactToMessage('msg-1', '🚀');
 
     expect(chatStore.messages[0].reactions).toEqual(mockReactions);
+  });
+
+  it('deve atualizar reações em tempo real ao receber evento WebSocket MESSAGE_REACTION_UPDATED', () => {
+    let reactionHandler: any;
+    vi.mocked(wsClient.onReactionUpdated).mockImplementation((handler: any) => {
+      reactionHandler = handler;
+      return () => {};
+    });
+
+    const chatStore = useChatStore();
+    chatStore.messages = [
+      {
+        id: 'msg-1',
+        roomId: 'room-1',
+        senderId: 'user-1',
+        senderName: 'Murilo',
+        text: 'Mensagem bacana',
+        createdAt: '2026-11-02T10:00:00Z',
+        reactions: []
+      }
+    ];
+
+    expect(reactionHandler).toBeDefined();
+    reactionHandler({
+      messageId: 'msg-1',
+      roomId: 'room-1',
+      reactions: [{ emoji: '🎉', count: 1, users: ['user-2'] }]
+    });
+
+    expect(chatStore.messages[0].reactions).toEqual([
+      { emoji: '🎉', count: 1, users: ['user-2'] }
+    ]);
   });
 });
 

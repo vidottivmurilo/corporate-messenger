@@ -2,7 +2,8 @@ import type {
   WsClientMessage,
   WsServerMessage,
   MessageDto,
-  OnlineUserDto
+  OnlineUserDto,
+  ReactionDto
 } from '@corp-messenger/shared';
 
 type MessageHandler = (message: MessageDto) => void;
@@ -11,6 +12,7 @@ type StatusHandler = (status: 'connected' | 'connecting' | 'disconnected') => vo
 type TypingHandler = (data: { roomId: string; userId: string; userName: string }) => void;
 type MessageUpdateHandler = (message: MessageDto) => void;
 type MessageDeleteHandler = (data: { messageId: string; roomId: string }) => void;
+type ReactionUpdateHandler = (data: { messageId: string; roomId: string; reactions: ReactionDto[] }) => void;
 
 class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -23,6 +25,7 @@ class WebSocketClient {
   private typingHandlers: Set<TypingHandler> = new Set();
   private messageUpdateHandlers: Set<MessageUpdateHandler> = new Set();
   private messageDeleteHandlers: Set<MessageDeleteHandler> = new Set();
+  private reactionUpdateHandlers: Set<ReactionUpdateHandler> = new Set();
 
   connect(token: string) {
     this.token = token;
@@ -71,6 +74,11 @@ class WebSocketClient {
 
         if (data.type === 'MESSAGE_DELETED') {
           this.messageDeleteHandlers.forEach(h => h(data));
+          return;
+        }
+
+        if (data.type === 'MESSAGE_REACTION_UPDATED') {
+          this.reactionUpdateHandlers.forEach(h => h(data));
           return;
         }
 
@@ -136,6 +144,11 @@ class WebSocketClient {
   onMessageDeleted(handler: MessageDeleteHandler) {
     this.messageDeleteHandlers.add(handler);
     return () => this.messageDeleteHandlers.delete(handler);
+  }
+
+  onReactionUpdated(handler: ReactionUpdateHandler) {
+    this.reactionUpdateHandlers.add(handler);
+    return () => this.reactionUpdateHandlers.delete(handler);
   }
 
   private notifyStatus(status: 'connected' | 'connecting' | 'disconnected') {

@@ -87,17 +87,19 @@
         <input
           v-model="editDraftText"
           type="text"
+          :disabled="isSavingEdit"
           @keydown.enter.prevent="saveEdit(msg.id)"
           @keydown.esc.prevent="cancelEdit"
-          class="w-full bg-background border border-primary/50 rounded px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          class="w-full bg-background border border-primary/50 rounded px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           autofocus
         />
         <div class="flex items-center gap-2 text-[10px]">
           <button
             @click="saveEdit(msg.id)"
-            class="px-2 py-0.5 bg-primary text-white rounded font-medium hover:bg-primary/90 transition-colors"
+            :disabled="isSavingEdit || !editDraftText.trim()"
+            class="px-2 py-0.5 bg-primary text-white rounded font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Salvar
+            {{ isSavingEdit ? 'Salvando...' : 'Salvar' }}
           </button>
           <button
             @click="cancelEdit"
@@ -209,6 +211,8 @@ const quickEmojis = ['👍', '❤️', '🚀', '👀'];
 // Controle de Edição e Exclusão In-line
 const editingMessageId = ref<string | null>(null);
 const editDraftText = ref('');
+const isSavingEdit = ref(false);
+const isEditCancelled = ref(false);
 const deletingMessageId = ref<string | null>(null);
 
 // Indicador de digitação na sala atual
@@ -282,17 +286,47 @@ function startEditing(msg: MessageDto) {
   cancelDelete();
   editingMessageId.value = msg.id;
   editDraftText.value = msg.text;
+  isSavingEdit.value = false;
+  isEditCancelled.value = false;
 }
 
 function cancelEdit() {
+  isEditCancelled.value = true;
   editingMessageId.value = null;
   editDraftText.value = '';
+  isSavingEdit.value = false;
 }
 
 async function saveEdit(messageId: string) {
-  if (!editDraftText.value.trim()) return;
-  await chatStore.editMessage(messageId, editDraftText.value.trim());
-  cancelEdit();
+  const newText = editDraftText.value.trim();
+  if (!newText || isSavingEdit.value) return;
+  isSavingEdit.value = true;
+  isEditCancelled.value = false;
+
+  // Optimistic UI: atualiza a mensagem localmente no chatStore imediatamente para feedback instantâneo (0ms)
+  const msg = chatStore.messages.find(m => m.id === messageId);
+  const oldText = msg?.text;
+  if (msg) {
+    msg.text = newText;
+    msg.isEdited = true;
+  }
+
+  // Fecha a UI localmente de imediato
+  editingMessageId.value = null;
+  editDraftText.value = '';
+
+  try {
+    if (!isEditCancelled.value) {
+      await chatStore.editMessage(messageId, newText);
+    }
+  } catch (err) {
+    console.error('Erro ao salvar edição:', err);
+    if (msg && oldText !== undefined) {
+      msg.text = oldText;
+    }
+  } finally {
+    isSavingEdit.value = false;
+  }
 }
 
 function promptDelete(messageId: string) {

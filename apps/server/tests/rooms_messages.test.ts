@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { db } from '../src/db/index.js';
 import { authService } from '../src/modules/auth/authService.js';
+import { wsManager } from '../src/websocket/wsServer.js';
 
 vi.mock('../src/db/index.js', () => ({
   db: {
@@ -215,7 +216,9 @@ describe('US-002, US-005, US-006: Salas, Mensagens, Reações e Edição', () =>
   });
 
   describe('POST /messages/:messageId/reactions', () => {
-    it('deve registrar reação com emoji em mensagem', async () => {
+    it('deve registrar reação com emoji em mensagem e emitir broadcast via WebSocket', async () => {
+      const broadcastSpy = vi.spyOn(wsManager, 'broadcastMessageReaction').mockResolvedValue(undefined as any);
+
       (db.query.messages.findFirst as any).mockResolvedValue({
         id: 'msg-1',
         roomId: 'room-1'
@@ -245,6 +248,10 @@ describe('US-002, US-005, US-006: Salas, Mensagens, Reações e Edição', () =>
       expect(body.length).toBe(1);
       expect(body[0].emoji).toBe('👍');
       expect(body[0].count).toBe(1);
+
+      expect(broadcastSpy).toHaveBeenCalledWith('msg-1', 'room-1', expect.arrayContaining([
+        expect.objectContaining({ emoji: '👍', count: 1 })
+      ]));
     });
 
     it('deve retornar 404 quando a mensagem não existir', async () => {

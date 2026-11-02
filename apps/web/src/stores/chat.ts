@@ -97,6 +97,13 @@ export const useChatStore = defineStore('chat', () => {
     }
   });
 
+  wsClient.onReactionUpdated(({ messageId, reactions }) => {
+    const target = messages.value.find(m => m.id === messageId);
+    if (target) {
+      target.reactions = reactions;
+    }
+  });
+
   async function loadRooms() {
     try {
       const data = await api.listRooms();

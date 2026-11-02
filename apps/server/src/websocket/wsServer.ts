@@ -3,7 +3,7 @@ import { WebSocket } from 'ws';
 import { authService, JwtPayload } from '../modules/auth/authService.js';
 import { messageService } from '../modules/messages/messageService.js';
 import { roomService } from '../modules/rooms/roomService.js';
-import type { WsClientMessage, WsServerMessage, OnlineUserDto, MessageDto } from '@corp-messenger/shared';
+import type { WsClientMessage, WsServerMessage, OnlineUserDto, MessageDto, ReactionDto } from '@corp-messenger/shared';
 
 interface AuthenticatedSocket extends WebSocket {
   user?: JwtPayload;
@@ -176,6 +176,17 @@ export class WebSocketManager {
       type: 'MESSAGE_DELETED',
       messageId,
       roomId
+    } as WsServerMessage);
+    this.sendToRoom(allowed, outbound);
+  }
+
+  async broadcastMessageReaction(messageId: string, roomId: string, reactions: ReactionDto[]) {
+    const allowed = await roomService.getRoomMembers(roomId);
+    const outbound = JSON.stringify({
+      type: 'MESSAGE_REACTION_UPDATED',
+      messageId,
+      roomId,
+      reactions
     } as WsServerMessage);
     this.sendToRoom(allowed, outbound);
   }
